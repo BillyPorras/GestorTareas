@@ -31,12 +31,13 @@ def mostrar_menu():
     print(Fore.BLUE + "==== Menú de Tareas ====")
     print(Fore.CYAN + "1. Agregar Tarea")
     print(Fore.CYAN + "2. Modificar Tarea")
-    print(Fore.CYAN + "3. Listar Tareas")
-    print(Fore.CYAN + "4. Eliminar Tarea")
-    print(Fore.CYAN + "5. Establecer Horas Laborales")
-    print(Fore.CYAN + "6. Exportar a CSV")
-    print(Fore.CYAN + "7. Actualizar Librerías")
-    print(Fore.CYAN + "8. Salir")
+    print(Fore.CYAN + "3. Listar Tareas (un día)")
+    print(Fore.CYAN + "4. Listar Tareas (rango de fechas)")
+    print(Fore.CYAN + "5. Eliminar Tarea")
+    print(Fore.CYAN + "6. Establecer Horas Laborales")
+    print(Fore.CYAN + "7. Exportar a CSV")
+    print(Fore.CYAN + "8. Actualizar Librerías")
+    print(Fore.CYAN + "9. Salir")
     print(Style.RESET_ALL)
 
 def validar_horas(horas):
@@ -50,10 +51,16 @@ def validar_horas(horas):
         return None
 
 def calcular_horas_restantes(horas_trabajadas):
+    cursor.execute('SELECT horas_trabajadas FROM tareas WHERE fecha = ?', (datetime.now().date(),))
+    tareas = cursor.fetchall()
+    
+    tiempo_total_trabajado = sum([validar_horas(t[0]).total_seconds() for t in tareas], 0)
     tiempo_trabajado = validar_horas(horas_trabajadas)
     if tiempo_trabajado is None:
         return None
-    tiempo_restante = horas_laborales_td - tiempo_trabajado
+    tiempo_total_trabajado += tiempo_trabajado.total_seconds()
+    
+    tiempo_restante = horas_laborales_td - timedelta(seconds=tiempo_total_trabajado)
     return tiempo_restante
 
 def obtener_fecha():
@@ -65,8 +72,27 @@ def obtener_fecha():
             print(Fore.RED + "Fecha inválida. Se usará la fecha actual.")
     return datetime.now().date()
 
+def obtener_rango_fechas():
+    fecha_inicio = input(Fore.GREEN + "Ingrese la fecha de inicio (DD/MM/YYYY): ")
+    fecha_fin = input(Fore.GREEN + "Ingrese la fecha de fin (DD/MM/YYYY): ")
+    
+    try:
+        fecha_inicio_dt = datetime.strptime(fecha_inicio, "%d/%m/%Y").date()
+        fecha_fin_dt = datetime.strptime(fecha_fin, "%d/%m/%Y").date()
+        if fecha_fin_dt < fecha_inicio_dt:
+            raise ValueError
+        return fecha_inicio_dt, fecha_fin_dt
+    except ValueError:
+        print(Fore.RED + "Fechas inválidas o rango incorrecto.")
+        return None, None
+
 def agregar_tarea():
-    nombre_tarea = input(Fore.GREEN + "Ingrese el nombre de la tarea: ")
+    while True:
+        nombre_tarea = input(Fore.GREEN + "Ingrese el nombre de la tarea: ").strip()
+        if nombre_tarea:
+            break
+        print(Fore.RED + "El nombre de la tarea no puede estar vacío.")
+    
     horas_trabajadas = input(Fore.GREEN + "Ingrese las horas trabajadas (HH:MM): ")
 
     horas_restantes = calcular_horas_restantes(horas_trabajadas)
@@ -87,15 +113,39 @@ def modificar_tarea():
     listar_tareas()
     try:
         tarea_id = int(input(Fore.GREEN + "Ingrese el ID de la tarea a modificar: "))
-        nombre_tarea = input(Fore.GREEN + "Ingrese el nuevo nombre de la tarea: ")
-        horas_trabajadas = input(Fore.GREEN + "Ingrese las nuevas horas trabajadas (HH:MM): ")
-        
-        cursor.execute('UPDATE tareas SET nombre_tarea = ?, horas_trabajadas = ? WHERE id = ?', 
-                       (nombre_tarea, horas_trabajadas, tarea_id))
-        conn.commit()
-        print(Fore.YELLOW + "Tarea modificada con éxito.")
-    except Exception:
-        print(Fore.RED + "Error al modificar la tarea. Asegúrese de que el ID sea correcto.")
+
+        # Obtener los valores actuales de la tarea
+        cursor.execute('SELECT nombre_tarea, horas_trabajadas FROM tareas WHERE id = ?', (tarea_id,))
+        tarea = cursor.fetchone()
+
+        if tarea:
+            nombre_actual, horas_actuales = tarea
+
+            # Pedir nuevo nombre de tarea, con el valor actual por defecto
+            nuevo_nombre = input(Fore.GREEN + f"Ingrese el nuevo nombre de la tarea (Enter para mantener '{nombre_actual}'): ")
+            if not nuevo_nombre:
+                nuevo_nombre = nombre_actual
+
+            # Pedir nuevas horas trabajadas, con el valor actual por defecto
+            nuevas_horas = input(Fore.GREEN + f"Ingrese las nuevas horas trabajadas (HH:MM) (Enter para mantener '{horas_actuales}'): ")
+            if not nuevas_horas:
+                nuevas_horas = horas_actuales
+            else:
+                if validar_horas(nuevas_horas) is None:
+                    print(Fore.RED + "Formato de horas inválido.")
+                    return
+
+            # Actualizar la tarea
+            cursor.execute('UPDATE tareas SET nombre_tarea = ?, horas_trabajadas = ? WHERE id = ?', 
+                           (nuevo_nombre, nuevas_horas, tarea_id))
+            conn.commit()
+            print(Fore.YELLOW + "Tarea modificada con éxito.")
+        else:
+            print(Fore.RED + "Tarea no encontrada.")
+
+    except Exception as e:
+        print(Fore.RED + f"Error al modificar la tarea: {e}")
+
 
 def eliminar_tarea():
     listar_tareas()
@@ -115,7 +165,37 @@ def listar_tareas(fecha=None):
     tareas = cursor.fetchall()
 
     if tareas:
-        print(tabulate(tareas, headers=["ID", "Fecha", "Nombre Tarea", "Horas Trabajadas"], tablefmt="pretty"))
+        # Formatear el ID con color y preparar los datos para tabulate
+        formatted_tareas = [
+            [f"{Fore.CYAN}{tarea[0]}{Style.RESET_ALL}", tarea[1], tarea[2]]
+            for tarea in tareas
+        ]
+        
+        print(tabulate(formatted_tareas, headers=["ID", "Nombre Tarea", "Horas Trabajadas"], tablefmt="pretty"))
+
+        horas_totales = sum([validar_horas(tarea[3]).total_seconds() for tarea in tareas])
+        tiempo_restante = horas_laborales_td - timedelta(seconds=horas_totales)
+        print(Fore.YELLOW + f"Horas restantes del día: {str(tiempo_restante).split('.')[0]}.")
+    else:
+        print(Fore.YELLOW + "No hay tareas para el día especificado.")
+    print(Style.RESET_ALL)
+
+
+def listar_tareas_rango_fechas():
+    fecha_inicio, fecha_fin = obtener_rango_fechas()
+    if fecha_inicio and fecha_fin:
+        cursor.execute('SELECT * FROM tareas WHERE fecha BETWEEN ? AND ?', (fecha_inicio, fecha_fin))
+        tareas = cursor.fetchall()
+
+    if tareas:
+        # Formatear el ID con color y preparar los datos para tabulate
+        formatted_tareas = [
+            [f"{Fore.CYAN}{tarea[0]}{Style.RESET_ALL}", tarea[1], tarea[2]]
+            for tarea in tareas
+        ]
+        
+        print(tabulate(formatted_tareas, headers=["ID", "Nombre Tarea", "Horas Trabajadas"], tablefmt="pretty"))
+
         horas_totales = sum([validar_horas(tarea[3]).total_seconds() for tarea in tareas])
         tiempo_restante = horas_laborales_td - timedelta(seconds=horas_totales)
         print(Fore.YELLOW + f"Horas restantes del día: {str(tiempo_restante).split('.')[0]}.")
@@ -124,68 +204,61 @@ def listar_tareas(fecha=None):
     print(Style.RESET_ALL)
 
 def exportar_a_csv():
-    fecha = obtener_fecha()
-    cursor.execute('SELECT * FROM tareas WHERE fecha = ?', (fecha,))
-    tareas = cursor.fetchall()
+    fecha_inicio, fecha_fin = obtener_rango_fechas()
+    if fecha_inicio and fecha_fin:
+        cursor.execute('SELECT * FROM tareas WHERE fecha BETWEEN ? AND ?', (fecha_inicio, fecha_fin))
+        tareas = cursor.fetchall()
 
-    if tareas:
-        with open(f'tareas_{fecha}.csv', 'w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(["ID", "Fecha", "Nombre Tarea", "Horas Trabajadas"])
-            writer.writerows(tareas)
-        print(Fore.YELLOW + f"Tareas exportadas a tareas_{fecha}.csv con éxito.")
+        if tareas:
+            with open(f'tareas_{fecha_inicio}_a_{fecha_fin}.csv', 'w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(["ID", "Fecha", "Nombre Tarea", "Horas Trabajadas"])
+                writer.writerows(tareas)
+            print(Fore.YELLOW + f"Tareas exportadas a tareas_{fecha_inicio}_a_{fecha_fin}.csv con éxito.")
+        else:
+            print(Fore.RED + "No hay tareas para exportar en el rango de fechas especificado.")
     else:
-        print(Fore.RED + "No hay tareas para exportar.")
-    print(Style.RESET_ALL)
+        print(Fore.RED + "No se exportaron tareas debido a fechas inválidas.")
 
 def establecer_horas_laborales():
     global horas_laborales, horas_laborales_td
-    horas_input = input(Fore.GREEN + "Ingrese las horas laborales (HH:MM) o presione Enter para usar el valor por defecto (07:15): ")
-    if horas_input:
-        horas_validas = validar_horas(horas_input)
-        if horas_validas:
-            horas_laborales = horas_input
-            horas_laborales_td = horas_validas
-            print(Fore.YELLOW + f"Horas laborales actualizadas a {horas_laborales}.")
-        else:
-            print(Fore.RED + "No se pudo actualizar las horas laborales debido a un formato inválido.")
+    horas_laborales = input(Fore.GREEN + "Ingrese las horas laborales del día (HH:MM): ")
+    horas_laborales_td = validar_horas(horas_laborales)
+    if horas_laborales_td is not None:
+        print(Fore.YELLOW + f"Horas laborales establecidas: {horas_laborales}.")
     else:
-        print(Fore.YELLOW + "Se mantendrán las horas laborales por defecto: 07:15.")
+        horas_laborales = "07:15"
+        horas_laborales_td = timedelta(hours=7, minutes=15)
 
 def actualizar_librerias():
-    print(Fore.YELLOW + "Actualizando librerías...")
     try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "tabulate", "colorama"])
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "colorama", "tabulate"])
         print(Fore.GREEN + "Librerías actualizadas con éxito.")
     except Exception as e:
-        print(Fore.RED + f"Ocurrió un error al actualizar las librerías: {e}")
+        print(Fore.RED + f"Error al actualizar las librerías: {e}")
 
-def main():
-    while True:
-        mostrar_menu()
-        opcion = input(Fore.GREEN + "Seleccione una opción: ")
+while True:
+    mostrar_menu()
+    opcion = input(Fore.GREEN + "Seleccione una opción: ")
 
-        if opcion == '1':
-            agregar_tarea()
-        elif opcion == '2':
-            modificar_tarea()
-        elif opcion == '3':
-            listar_tareas()
-        elif opcion == '4':
-            eliminar_tarea()
-        elif opcion == '5':
-            establecer_horas_laborales()
-        elif opcion == '6':
-            exportar_a_csv()
-        elif opcion == '7':
-            actualizar_librerias()
-        elif opcion == '8':
-            print(Fore.YELLOW + "Saliendo del programa.")
-            break
-        else:
-            print(Fore.RED + "Opción no válida, intente de nuevo.")
-    
-    conn.close()
-
-if __name__ == "__main__":
-    main()
+    if opcion == '1':
+        agregar_tarea()
+    elif opcion == '2':
+        modificar_tarea()
+    elif opcion == '3':
+        listar_tareas()
+    elif opcion == '4':
+        listar_tareas_rango_fechas()
+    elif opcion == '5':
+        eliminar_tarea()
+    elif opcion == '6':
+        establecer_horas_laborales()
+    elif opcion == '7':
+        exportar_a_csv()
+    elif opcion == '8':
+        actualizar_librerias()
+    elif opcion == '9':
+        print(Fore.YELLOW + "Saliendo del programa...")
+        break
+    else:
+        print(Fore.RED + "Opción no válida. Intente de nuevo.")
