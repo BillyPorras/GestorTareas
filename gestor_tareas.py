@@ -167,11 +167,11 @@ def listar_tareas(fecha=None):
     if tareas:
         # Formatear el ID con color y preparar los datos para tabulate
         formatted_tareas = [
-            [f"{Fore.CYAN}{tarea[0]}{Style.RESET_ALL}", tarea[1], tarea[2]]
+            [f"{Fore.CYAN}{tarea[0]}{Style.RESET_ALL}", tarea[1], tarea[2],tarea[3]]
             for tarea in tareas
         ]
         
-        print(tabulate(formatted_tareas, headers=["ID", "Nombre Tarea", "Horas Trabajadas"], tablefmt="pretty"))
+        print(tabulate(formatted_tareas, headers=["ID", "Fecha", "Tarea","Tiempo Laborado"], tablefmt="pretty"))
 
         horas_totales = sum([validar_horas(tarea[3]).total_seconds() for tarea in tareas])
         tiempo_restante = horas_laborales_td - timedelta(seconds=horas_totales)
@@ -190,11 +190,11 @@ def listar_tareas_rango_fechas():
     if tareas:
         # Formatear el ID con color y preparar los datos para tabulate
         formatted_tareas = [
-            [f"{Fore.CYAN}{tarea[0]}{Style.RESET_ALL}", tarea[1], tarea[2]]
+            [f"{Fore.CYAN}{tarea[0]}{Style.RESET_ALL}", tarea[1], tarea[2],tarea[3]]
             for tarea in tareas
         ]
         
-        print(tabulate(formatted_tareas, headers=["ID", "Nombre Tarea", "Horas Trabajadas"], tablefmt="pretty"))
+        print(tabulate(formatted_tareas, headers=["ID", "Fecha", "Tarea","Tiempo Laborado"], tablefmt="pretty"))
 
         horas_totales = sum([validar_horas(tarea[3]).total_seconds() for tarea in tareas])
         tiempo_restante = horas_laborales_td - timedelta(seconds=horas_totales)
