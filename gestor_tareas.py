@@ -1,10 +1,39 @@
 import sqlite3
 from datetime import datetime, timedelta
 from tabulate import tabulate
-from colorama import Fore, Style, init
+from colorama import Fore, Back, Style, init
 import csv
 import subprocess
 import sys
+import os
+
+"""
+Gestor de Tareas
+
+Desarrollado por: Ing. Billy Porras Meléndez
+Día de Creación: 15 de Octubre de 2024
+
+Descripción:
+Este script implementa un gestor de tareas que permite a los usuarios agregar, listar y exportar tareas. 
+Cada tarea incluye un nombre, la fecha de realización y las horas trabajadas. 
+
+Características:
+- Agregar nuevas tareas con el nombre de la tarea y el tiempo trabajado.
+- Listar las tareas filtradas por una fecha específica.
+- Exportar las tareas realizadas en un rango de fechas a un archivo CSV.
+- Manejo de bases de datos SQLite para almacenar las tareas.
+- Interfaz interactiva y colorida usando `tabulate` y `colorama` para mejorar la experiencia del usuario.
+
+Este gestor de tareas está diseñado para ser intuitivo y eficiente en la gestión del tiempo trabajado en diferentes actividades diarias.
+
+Librerías utilizadas:
+- sqlite3: Manejo de la base de datos.
+- datetime: Manejo de fechas y horas.
+- tabulate: Presentación de datos en tablas con formato.
+- colorama: Colorear la salida del terminal para mejorar la experiencia del usuario.
+- csv: Exportar datos a archivos CSV.
+
+"""
 
 # Inicializa Colorama
 init(autoreset=True)
@@ -23,22 +52,68 @@ CREATE TABLE IF NOT EXISTS tareas (
 )
 ''')
 
+# Ruta del archivo de configuración
+config_file_path = 'config.gestion'
+
 # Configurar horas laborales por defecto
 horas_laborales = "07:15"
 horas_laborales_td = timedelta(hours=7, minutes=15)
 
+def cargar_horas_laborales():
+    global horas_laborales, horas_laborales_td
+    if os.path.exists(config_file_path):
+        with open(config_file_path, 'r') as file:
+            horas_laborales = file.readline().strip()
+            horas_laborales_td = validar_horas(horas_laborales) or timedelta(hours=7, minutes=15)
+    else:
+        horas_laborales = "07:15"
+        horas_laborales_td = timedelta(hours=7, minutes=15)
+
+def guardar_horas_laborales():
+    with open(config_file_path, 'w') as file:
+        file.write(horas_laborales)
+
 def mostrar_menu():
-    print(Fore.BLUE + "==== Menú de Tareas ====")
-    print(Fore.CYAN + "1. Agregar Tarea")
-    print(Fore.CYAN + "2. Modificar Tarea")
-    print(Fore.CYAN + "3. Listar Tareas (un día)")
-    print(Fore.CYAN + "4. Listar Tareas (rango de fechas)")
-    print(Fore.CYAN + "5. Eliminar Tarea")
-    print(Fore.CYAN + "6. Establecer Horas Laborales")
-    print(Fore.CYAN + "7. Exportar a CSV")
-    print(Fore.CYAN + "8. Actualizar Librerías")
-    print(Fore.CYAN + "9. Salir")
+    print(Fore.BLUE + Style.BRIGHT + "==== Menú de Tareas ====")
+    print(Fore.CYAN + Style.BRIGHT + "1."+ Fore.WHITE +" Agregar Tarea")
+    print(Fore.CYAN + Style.BRIGHT + "2."+ Fore.WHITE +" Modificar Tarea")
+    print(Fore.CYAN + Style.BRIGHT + "3."+ Fore.WHITE +" Listar Tareas (un día)")
+    print(Fore.CYAN + Style.BRIGHT + "4."+ Fore.WHITE +" Listar Tareas (rango de fechas)")
+    print(Fore.CYAN + Style.BRIGHT + "5."+ Fore.WHITE +" Eliminar Tarea")
+    print(Fore.CYAN + Style.BRIGHT + "6."+ Fore.WHITE +" Establecer Horas Laborales")
+    print(Fore.CYAN + Style.BRIGHT + "7."+ Fore.WHITE +" Exportar a CSV")
+    print(Fore.CYAN + Style.BRIGHT + "8."+ Fore.WHITE +" Actualizar Librerías")
+    print(Fore.RED + Style.BRIGHT + "9."+ Fore.WHITE +" Salir")
+    print(Fore.BLUE + Style.BRIGHT + "10."+ Fore.WHITE +" Acerca de")
     print(Style.RESET_ALL)
+    
+def acerca_de():
+    print(Fore.GREEN + "\n**************************************************")
+    print(Fore.GREEN + "\nAcerca de:")
+    print(Fore.BLUE + Style.BRIGHT + "\n__________________________________________________")
+    print(Fore.BLUE + Style.BRIGHT + "\nDesarrollado por: Ing. Billy Porras Meléndez")
+    print(Fore.BLUE + Style.BRIGHT + "Fecha de Creación: 15 de Octubre de 2024")
+    print(Fore.BLUE + Style.BRIGHT + "Versión: 1.1.5")
+    print(Fore.BLUE + Style.BRIGHT + "\n__________________________________________________")
+    print(Fore.CYAN + "Este proyecto fue desarrollado con el objetivo de")
+    print(Fore.CYAN + "proporcionar una herramienta simple, eficiente y")
+    print(Fore.CYAN + "altamente personalizable para la gestión del tiempo")
+    print(Fore.CYAN + "de trabajo diario. Con funcionalidades que permiten")
+    print(Fore.CYAN + "el registro, la modificación y la exportación de")
+    print(Fore.CYAN + "tareas, el gestor de tareas es ideal para aquellos")
+    print(Fore.CYAN + "que buscan mantener un control preciso sobre sus")
+    print(Fore.CYAN + "actividades diarias.")
+    
+
+
+    print(Fore.CYAN + "\nEste gestor de tareas está diseñado para ser")
+    print(Fore.CYAN + "intuitivo, con colores y tablas bien organizadas")
+    print(Fore.CYAN + "para mejorar la experiencia del usuario.")
+    
+    print(Fore.CYAN + "Desarrollado usando SQLite para almacenamiento")
+    print(Fore.CYAN + "de datos y Tabulate para presentar la información")
+    print(Fore.CYAN + "de manera estructurada.")
+    print(Fore.GREEN + "\n**************************************************")
 
 def validar_horas(horas):
     try:
@@ -146,7 +221,6 @@ def modificar_tarea():
     except Exception as e:
         print(Fore.RED + f"Error al modificar la tarea: {e}")
 
-
 def eliminar_tarea():
     listar_tareas()
     try:
@@ -167,19 +241,18 @@ def listar_tareas(fecha=None):
     if tareas:
         # Formatear el ID con color y preparar los datos para tabulate
         formatted_tareas = [
-            [f"{Fore.CYAN}{tarea[0]}{Style.RESET_ALL}", tarea[1], tarea[2],tarea[3]]
+            [f"{Fore.CYAN}{tarea[0]}{Style.RESET_ALL}", tarea[1], tarea[2], tarea[3]]
             for tarea in tareas
         ]
         
-        print(tabulate(formatted_tareas, headers=["ID", "Fecha", "Tarea","Tiempo Laborado"], tablefmt="pretty"))
+        print(tabulate(formatted_tareas, headers=["ID", "Fecha", "Tarea", "Tiempo Laborado"], tablefmt="fancy_grid",maxcolwidths=[None, 30,30]))
 
         horas_totales = sum([validar_horas(tarea[3]).total_seconds() for tarea in tareas])
         tiempo_restante = horas_laborales_td - timedelta(seconds=horas_totales)
-        print(Fore.YELLOW + f"Horas restantes del día: {str(tiempo_restante).split('.')[0]}.")
+        print(Fore.YELLOW + Back.RED + Style.BRIGHT + f"Horas restantes del día {fecha}: {str(tiempo_restante).split('.')[0]}.Total de horas trabajadas {str(timedelta(seconds=horas_totales)).split('.')[0]}")
     else:
         print(Fore.YELLOW + "No hay tareas para el día especificado.")
     print(Style.RESET_ALL)
-
 
 def listar_tareas_rango_fechas():
     fecha_inicio, fecha_fin = obtener_rango_fechas()
@@ -187,56 +260,54 @@ def listar_tareas_rango_fechas():
         cursor.execute('SELECT * FROM tareas WHERE fecha BETWEEN ? AND ?', (fecha_inicio, fecha_fin))
         tareas = cursor.fetchall()
 
-    if tareas:
-        # Formatear el ID con color y preparar los datos para tabulate
-        formatted_tareas = [
-            [f"{Fore.CYAN}{tarea[0]}{Style.RESET_ALL}", tarea[1], tarea[2],tarea[3]]
-            for tarea in tareas
-        ]
-        
-        print(tabulate(formatted_tareas, headers=["ID", "Fecha", "Tarea","Tiempo Laborado"], tablefmt="pretty"))
+        if tareas:
+            # Formatear el ID con color y preparar los datos para tabulate
+            formatted_tareas = [
+                [f"{Fore.CYAN}{tarea[0]}{Style.RESET_ALL}", tarea[1], tarea[2], tarea[3]]
+                for tarea in tareas
+            ]
+            
+            print(tabulate(formatted_tareas, headers=["ID", "Fecha", "Tarea", "Tiempo Laborado"], tablefmt="fancy_grid",maxcolwidths=[None, 30,30]))
 
-        horas_totales = sum([validar_horas(tarea[3]).total_seconds() for tarea in tareas])
-        tiempo_restante = horas_laborales_td - timedelta(seconds=horas_totales)
-        print(Fore.YELLOW + f"Horas restantes del día: {str(tiempo_restante).split('.')[0]}.")
-    else:
-        print(Fore.YELLOW + "No hay tareas para el día especificado.")
+            horas_totales = sum([validar_horas(tarea[3]).total_seconds() for tarea in tareas])
+            print(Fore.YELLOW + Back.RED + Style.BRIGHT + f"Horas totales trabajadas en el rango: {str(timedelta(seconds=horas_totales)).split('.')[0]}.")
+        else:
+            print(Fore.YELLOW + "No hay tareas para el rango de fechas especificado.")
     print(Style.RESET_ALL)
 
 def exportar_a_csv():
-    fecha_inicio, fecha_fin = obtener_rango_fechas()
-    if fecha_inicio and fecha_fin:
-        cursor.execute('SELECT * FROM tareas WHERE fecha BETWEEN ? AND ?', (fecha_inicio, fecha_fin))
+    with open('tareas.csv', 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["ID", "Fecha", "Tarea", "Tiempo Laborado"])
+
+        cursor.execute('SELECT * FROM tareas')
         tareas = cursor.fetchall()
 
-        if tareas:
-            with open(f'tareas_{fecha_inicio}_a_{fecha_fin}.csv', 'w', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow(["ID", "Fecha", "Nombre Tarea", "Horas Trabajadas"])
-                writer.writerows(tareas)
-            print(Fore.YELLOW + f"Tareas exportadas a tareas_{fecha_inicio}_a_{fecha_fin}.csv con éxito.")
-        else:
-            print(Fore.RED + "No hay tareas para exportar en el rango de fechas especificado.")
-    else:
-        print(Fore.RED + "No se exportaron tareas debido a fechas inválidas.")
+        for tarea in tareas:
+            writer.writerow(tarea)
+
+    print(Fore.YELLOW + "Tareas exportadas a tareas.csv con éxito.")
+    print(Style.RESET_ALL)
 
 def establecer_horas_laborales():
     global horas_laborales, horas_laborales_td
-    horas_laborales = input(Fore.GREEN + "Ingrese las horas laborales del día (HH:MM): ")
-    horas_laborales_td = validar_horas(horas_laborales)
-    if horas_laborales_td is not None:
-        print(Fore.YELLOW + f"Horas laborales establecidas: {horas_laborales}.")
+    nuevo_horas = input(Fore.GREEN + "Ingrese las nuevas horas laborales (HH:MM): ")
+    if validar_horas(nuevo_horas):
+        horas_laborales = nuevo_horas
+        horas_laborales_td = validar_horas(nuevo_horas)
+        guardar_horas_laborales()
+        print(Fore.YELLOW + "Horas laborales actualizadas con éxito.")
     else:
-        horas_laborales = "07:15"
-        horas_laborales_td = timedelta(hours=7, minutes=15)
+        print(Fore.RED + "Formato de horas inválido.")
 
 def actualizar_librerias():
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "colorama", "tabulate"])
-        print(Fore.GREEN + "Librerías actualizadas con éxito.")
-    except Exception as e:
-        print(Fore.RED + f"Error al actualizar las librerías: {e}")
+    # Este comando dependerá del sistema operativo, se asume que es un entorno basado en UNIX
+    os.system("pip install --upgrade tabulate colorama")
 
+# Cargar horas laborales al inicio
+cargar_horas_laborales()
+
+# Bucle principal
 while True:
     mostrar_menu()
     opcion = input(Fore.GREEN + "Seleccione una opción: ")
@@ -260,5 +331,10 @@ while True:
     elif opcion == '9':
         print(Fore.YELLOW + "Saliendo del programa...")
         break
+    elif opcion == '10':
+        acerca_de()
     else:
-        print(Fore.RED + "Opción no válida. Intente de nuevo.")
+        print(Fore.RED + "Opción inválida. Intente nuevamente.")
+
+# Cerrar la conexión
+conn.close()
